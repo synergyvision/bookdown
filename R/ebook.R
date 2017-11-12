@@ -27,6 +27,7 @@ epub_book = function(
 
   epub_version = match.arg(epub_version)
   args = c(
+    if (pandoc2.0()) '--epub-subdirectory=',
     pandoc_args,
     if (number_sections) '--number-sections',
     if (toc) '--toc',
@@ -37,7 +38,7 @@ epub_book = function(
   )
   if (is.null(stylesheet)) css = NULL else {
     css = rmarkdown::pandoc_path_arg(epub_css(stylesheet))
-    args = c(args, '--epub-stylesheet', css)
+    args = c(args, if (pandoc2.0()) '--css' else '--epub-stylesheet', css)
   }
 
   from_rmarkdown = getFromNamespace('from_rmarkdown', 'rmarkdown')
@@ -74,7 +75,7 @@ process_markdown = function(input_file, from, pandoc_args, global, to_md = outpu
     input_file, 'html', from, intermediate_html, TRUE,
     c(pandoc_args, '--section-divs', '--mathjax', '--number-sections')
   )
-  x = readUTF8(intermediate_html)
+  x = fix_sections(readUTF8(intermediate_html))
   figs = parse_fig_labels(x, global)
   # resolve cross-references and update the Markdown input file
   content = resolve_refs_md(

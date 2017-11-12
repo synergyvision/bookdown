@@ -122,7 +122,7 @@ html_document2 = function(
   post = config$post_processor  # in case a post processor have been defined
   config$post_processor = function(metadata, input, output, clean, verbose) {
     if (is.function(post)) output = post(metadata, input, output, clean, verbose)
-    x = readUTF8(output)
+    x = fix_sections(readUTF8(output))
     x = restore_appendix_html(x, remove = FALSE)
     x = restore_part_html(x, remove = FALSE)
     x = resolve_refs_html(x, global = !number_sections)
@@ -197,7 +197,7 @@ split_chapters = function(output, build = build_chapter, number_sections, split_
 
   if (!(split_level %in% 0:2)) stop('split_level must be 0, 1, or 2')
 
-  x = readUTF8(output)
+  x = fix_sections(readUTF8(output))
 
   i1 = find_token(x, '<!--bookdown:title:start-->')
   i2 = find_token(x, '<!--bookdown:title:end-->')
@@ -207,7 +207,7 @@ split_chapters = function(output, build = build_chapter, number_sections, split_
   i6 = find_token(x, '<!--bookdown:body:end-->')
 
   r_chap = '^<!--chapter:end:(.+)-->$'
-  n = length( grep(r_chap, x) )
+  n = length(grep(r_chap, x))
 
   # Need to take care of the div tags here before restore_part_html and
   # restore_appendix_html erase the section ids of the hidden PART or APPENDIX
@@ -952,5 +952,24 @@ restore_math_labels = function(x) {
   i = unlist(mapply(seq, i1, i2, SIMPLIFY = FALSE))
   # remove \ before #
   x[i] = gsub('\\(\\\\(#eq:[-/[:alnum:]]+)\\)', '(\\1)', x[i])
+  x
+}
+
+# Pandoc 2.0 starts to use <section> instead of <div> for html5 output, but
+# unfortunately bookdown heavily relies on <div>, so we need to restore
+# <section> to <div>
+fix_sections = function(x) {
+  if (!pandoc2.0()) return(x)
+  i1 = grep('^<section .*>$', x)
+  i2 = grep('^</section>$', x)
+  if (length(i1) != length(i2)) {
+    warning('The <section> tags in HTML output do not seem to be balanced:\n')
+    cat(grep('^(<section .*>|</section>)$', x, value = TRUE), sep = '\n')
+  }
+  x[i1] = gsub('^<section', '<div', x[i1])
+  x[i2] = '</div>'
+  # Pandoc 2.0 also removed the "section" class
+  i3 = grep('^<div (id="[^"]+" )?class="level[1-6]("| )', x)
+  x[i3] = gsub('class="level', 'class="section level', x[i3])
   x
 }
